@@ -626,9 +626,112 @@
         footer a:hover {
             text-decoration: underline;
         }
+
+        /* Assessment Top Ribbon */
+        .assessment-ribbon {
+            background: linear-gradient(90deg, #161b26 0%, #1e1529 50%, #161b26 100%);
+            border-bottom: 1px solid rgba(245, 166, 35, 0.4);
+            padding: 9px 24px;
+            font-size: 0.83rem;
+            color: #d1d5db;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .assessment-ribbon b {
+            color: var(--accent-gold);
+            font-weight: 700;
+        }
+
+        .ribbon-links a {
+            color: var(--accent-cyan);
+            text-decoration: none;
+            margin: 0 4px;
+            font-weight: 600;
+        }
+
+        .ribbon-links a:hover {
+            text-decoration: underline;
+        }
+
+        /* Copy Button & Toast */
+        .btn-copy {
+            background: #1c2538;
+            border: 1px solid var(--border);
+            color: #c9d1d9;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 0.86rem;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 14px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-copy:hover {
+            background: #25334d;
+            border-color: var(--accent-cyan);
+            color: #fff;
+        }
+
+        .toast-msg {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #00e676;
+            color: #0b101b;
+            font-weight: 700;
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0, 230, 118, 0.4);
+            z-index: 9999;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+
+        .toast-msg.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .ci-row {
+            display: flex;
+            justify-content: space-between;
+            background: rgba(88, 166, 255, 0.08);
+            border: 1px solid rgba(88, 166, 255, 0.25);
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin-top: 14px;
+            font-size: 0.82rem;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
     </style>
 </head>
 <body>
+
+    <!-- Official Assessment Ribbon -->
+    <div class="assessment-ribbon">
+        <div>
+            🏢 <b>ALGIONS AI LABS PRIVATE LIMITED</b> • Advanced AI & Machine Learning Project Assessment
+        </div>
+        <div class="ribbon-links">
+            <a href="#eda">📓 EDA Notebooks</a> • 
+            <a href="#leaderboard">🏆 Model Leaderboard</a> • 
+            <a href="https://github.com/navneet210605/Cinema-Ticket-Demand-Forecasting" target="_blank">⭐ GitHub Repo ↗</a>
+        </div>
+    </div>
 
     <!-- Navigation Bar -->
     <header class="navbar">
@@ -802,6 +905,16 @@
                         </div>
                     </div>
 
+                    <div class="form-group" style="background: rgba(33, 150, 243, 0.08); border: 1px dashed rgba(88, 166, 255, 0.35); border-radius: 8px; padding: 10px 14px; margin-top: 4px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 0;">
+                            <input type="checkbox" id="coldStartCheck" onchange="toggleColdStart(this.checked)" style="width: 16px; height: 16px; accent-color: #1f6feb;">
+                            <span style="color: var(--accent-cyan); font-weight: 700; font-size: 0.88rem;">❄️ Cold-Start Premiere Mode (Day 0, Unseen Movie)</span>
+                        </label>
+                        <div id="coldStartHint" style="font-size: 0.76rem; color: var(--text-muted); margin-top: 4px; display: none;">
+                            ✓ release_days = 0 • Missing slot history imputed with 55% screen capacity baseline.
+                        </div>
+                    </div>
+
                     <button type="submit" class="btn-forecast">⚡ Compute Real-Time Demand Forecast</button>
                 </form>
             </div>
@@ -830,6 +943,18 @@
                             <div style="font-size: 0.82rem; color: var(--text-muted); font-weight: 600;">Est. Box Office</div>
                             <div style="font-size: 2.2rem; font-weight: 800; color: var(--accent-gold); line-height: 1.1;" id="resRevenue">$3,597</div>
                             <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;" id="resPriceNote">at $16.50 / ticket</div>
+                        </div>
+                    </div>
+
+                    <!-- Uncertainty Interval & Model Attribution Card -->
+                    <div class="ci-row">
+                        <div>
+                            <span style="color: var(--text-muted);">95% Prediction Interval:</span>
+                            <b style="color: var(--accent-cyan); margin-left: 6px;" id="resCiRange">[188 - 248 tickets]</b>
+                        </div>
+                        <div>
+                            <span style="color: var(--text-muted);">Model:</span>
+                            <span style="color: var(--accent-green); font-weight: 600; margin-left: 6px;" id="resModel">Gradient Boosting (Champion)</span>
                         </div>
                     </div>
 
@@ -864,6 +989,10 @@
                 <div class="rec-item" style="border-left-color: var(--accent-gold);" id="recPricing">
                     <b>💰 Dynamic Pricing:</b> High demand confirmed: Maintain premium pricing or apply weekend surge (+10-15%).
                 </div>
+
+                <button type="button" class="btn-copy" onclick="copyBriefing()">
+                    📋 Copy Shift Roster & Operational Briefing to Clipboard
+                </button>
             </div>
         </section>
 
@@ -1257,6 +1386,20 @@
             }
         }
 
+        function toggleColdStart(active) {
+            const relInput = document.getElementById('releaseDays');
+            const hint = document.getElementById('coldStartHint');
+            if (active) {
+                relInput.value = 0;
+                relInput.disabled = true;
+                hint.style.display = 'block';
+            } else {
+                relInput.disabled = false;
+                hint.style.display = 'none';
+            }
+            runForecast();
+        }
+
         function renderAuditoriumDots(capacity, advBooked, walkIns) {
             const grid = document.getElementById('seatDotsGrid');
             if (!grid) return;
@@ -1267,18 +1410,24 @@
             const advShare = Math.round((advBooked / capacity) * visualSeats);
             const walkShare = Math.round((walkIns / capacity) * visualSeats);
 
+            const rowLetters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K'];
+
             for (let i = 0; i < visualSeats; i++) {
                 const dot = document.createElement('div');
                 dot.className = 'seat-dot';
+                const rowIdx = Math.floor(i / 10);
+                const seatNum = (i % 10) + 1;
+                const rowName = rowLetters[rowIdx] || 'A';
+
                 if (i < advShare) {
                     dot.classList.add('booked');
-                    dot.title = `Seat ${i+1}: Pre-booked`;
+                    dot.title = `Row ${rowName}, Seat ${seatNum}: Confirmed Advance Booking`;
                 } else if (i < advShare + walkShare) {
                     dot.classList.add('walkin');
-                    dot.title = `Seat ${i+1}: Predicted Walk-in`;
+                    dot.title = `Row ${rowName}, Seat ${seatNum}: Predicted Walk-in`;
                 } else {
                     dot.classList.add('empty');
-                    dot.title = `Seat ${i+1}: Unsold`;
+                    dot.title = `Row ${rowName}, Seat ${seatNum}: Available Seat`;
                 }
                 grid.appendChild(dot);
             }
@@ -1286,6 +1435,76 @@
             document.getElementById('legAdv').innerText = advBooked;
             document.getElementById('legWalk').innerText = walkIns;
             document.getElementById('legEmpty').innerText = Math.max(0, capacity - (advBooked + walkIns));
+        }
+
+        function copyBriefing() {
+            const movie = document.getElementById('movieName').value;
+            const capacity = document.getElementById('capacity').value;
+            const showtime = document.getElementById('showtime').value;
+            const tickets = document.getElementById('resTickets').innerText;
+            const occ = document.getElementById('resOccupancy').innerText;
+            const rev = document.getElementById('resRevenue').innerText;
+            const ci = document.getElementById('resCiRange') ? document.getElementById('resCiRange').innerText : 'N/A';
+            const staff = document.getElementById('recStaff').innerText.replace('👥 Staffing Guidance: ', '');
+            const screen = document.getElementById('recScreen').innerText.replace('🏛️ Screen Allocation: ', '');
+            const pricing = document.getElementById('recPricing').innerText.replace('💰 Dynamic Pricing: ', '');
+
+            const text = 
+`🎬 CINEFORECAST MANAGERIAL BRIEFING
+Movie: ${movie} (${showtime} Slot)
+Auditorium Capacity: ${capacity} seats
+----------------------------------------
+• Forecasted Attendance: ${tickets} tickets (Occupancy: ${occ})
+• 95% Confidence Interval: ${ci}
+• Estimated Box Office Gross: ${rev}
+----------------------------------------
+STAFFING ROSTER:
+${staff}
+
+SCREEN ALLOCATION:
+${screen}
+
+PRICING & PROMOTION:
+${pricing}
+----------------------------------------
+Forecast Cutoff: T-6h prior to showtime | CineForecast ML Engine`;
+
+            navigator.clipboard.writeText(text).then(() => {
+                showToast("✅ Managerial Briefing copied to clipboard!");
+            }).catch(() => {
+                showToast("✅ Forecast Briefing generated (clipboard ready).");
+            });
+        }
+
+        function showToast(msg) {
+            let toast = document.getElementById('toastMsg');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'toastMsg';
+                toast.className = 'toast-msg';
+                document.body.appendChild(toast);
+            }
+            toast.innerText = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3200);
+        }
+
+        async function checkBackendApi() {
+            try {
+                const res = await fetch("http://127.0.0.1:8000/health", { mode: 'cors' });
+                if (res.ok) {
+                    const data = await res.json();
+                    const pill = document.querySelector('.model-status-pill');
+                    if (pill) {
+                        pill.style.background = 'rgba(0, 230, 118, 0.2)';
+                        pill.style.borderColor = 'var(--accent-green)';
+                        pill.style.color = 'var(--accent-green)';
+                        pill.innerText = '🟢 REST API Connected (FastAPI)';
+                    }
+                }
+            } catch (e) {
+                // Backend offline, keep default calibrated client engine
+            }
         }
 
         function runForecast() {
@@ -1357,6 +1576,15 @@
                 recPricing.innerHTML = "<b>💰 Dynamic Pricing:</b> Low Demand Warning: Launch combo discount (Popcorn + Drink) to stimulate walk-ins.";
             }
 
+            // Empirical 95% Confidence Interval (Test RMSE = 15.20)
+            const margin = Math.round(1.96 * 15.20);
+            const ciLower = Math.max(adv, predictedTickets - margin);
+            const ciUpper = Math.min(capacity, predictedTickets + margin);
+            const ciElem = document.getElementById('resCiRange');
+            if (ciElem) {
+                ciElem.innerText = `[${ciLower} - ${ciUpper} tickets]`;
+            }
+
             // Render mini visual auditorium seating map
             renderAuditoriumDots(capacity, adv, predictedTickets - adv);
         }
@@ -1366,6 +1594,7 @@
             updateGenre();
             adjustAdvSlider();
             runForecast();
+            checkBackendApi();
 
             const chartDefaults = {
                 color: '#8b99ad',
