@@ -79,6 +79,12 @@ def train_and_evaluate(data_dir: str = "data/processed",
     Train all candidates, evaluate chronologically, and save best model.
     """
     set_seed(seed)
+    # Support running from root or from subfolders like notebooks/
+    if not os.path.exists(data_dir) and os.path.exists(os.path.join("..", data_dir)):
+        data_dir = os.path.join("..", data_dir)
+    if not os.path.exists(models_dir) and os.path.exists(os.path.join("..", models_dir)):
+        models_dir = os.path.join("..", models_dir)
+
     os.makedirs(models_dir, exist_ok=True)
     os.makedirs(os.path.join(models_dir, "plots"), exist_ok=True)
 

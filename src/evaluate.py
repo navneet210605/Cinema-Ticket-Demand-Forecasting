@@ -23,6 +23,11 @@ def generate_evaluation_plots(comparison_json_path: str = "models/model_comparis
     """
     Generate static publication-quality diagnostic charts for technical reporting.
     """
+    if not os.path.exists(comparison_json_path) and os.path.exists(os.path.join("..", comparison_json_path)):
+        comparison_json_path = os.path.join("..", comparison_json_path)
+    if not os.path.exists(output_dir) and os.path.exists(os.path.join("..", output_dir)):
+        output_dir = os.path.join("..", output_dir)
+
     os.makedirs(output_dir, exist_ok=True)
     
     with open(comparison_json_path, "r") as f:
@@ -107,6 +112,8 @@ def generate_evaluation_plots(comparison_json_path: str = "models/model_comparis
 
     # 4. Feature Importance Top 12 Plot
     fi_json_path = "models/feature_importance.json"
+    if not os.path.exists(fi_json_path) and os.path.exists("../models/feature_importance.json"):
+        fi_json_path = "../models/feature_importance.json"
     if os.path.exists(fi_json_path):
         with open(fi_json_path, "r") as f:
             fi = json.load(f)
@@ -125,6 +132,66 @@ def generate_evaluation_plots(comparison_json_path: str = "models/model_comparis
         plot_paths["feature_importance"] = fi_plot_path
 
     return plot_paths
+
+
+def evaluate_cold_start_cohort(data_dir: str = "data/processed",
+                               comparison_json_path: str = "models/model_comparison.json") -> Dict[str, Any]:
+    """
+    Quantitatively evaluate model performance on Cold-Start vs Mature movie screenings.
+    Cold-start is defined as Day 0 (Premiere) and Opening Weekend (<= 3 days since release).
+    """
+    from src.utils import calculate_metrics
+
+    if not os.path.exists(data_dir) and os.path.exists(os.path.join("..", data_dir)):
+        data_dir = os.path.join("..", data_dir)
+    if not os.path.exists(comparison_json_path) and os.path.exists(os.path.join("..", comparison_json_path)):
+        comparison_json_path = os.path.join("..", comparison_json_path)
+
+    test_csv_path = os.path.join(data_dir, "test.csv")
+    if not os.path.exists(test_csv_path) or not os.path.exists(comparison_json_path):
+        return {}
+
+    test_df = pd.read_csv(test_csv_path)
+    with open(comparison_json_path, "r") as f:
+        comp_data = json.load(f)
+
+    best_model_name = comp_data.get("best_model_name", "Gradient Boosting")
+    preds = np.array(comp_data["test_predictions"][best_model_name])
+    actuals = test_df["tickets_sold"].values
+
+    mask_mature = test_df["release_days"] > 3
+    mask_cold_start = test_df["release_days"] <= 3
+    mask_day0 = test_df["release_days"] == 0
+
+    cohorts = {
+        "overall_test": {
+            "description": "All 375 held-out future screenings",
+            "show_count": int(len(test_df)),
+            "metrics": calculate_metrics(actuals, preds)
+        },
+        "mature_shows": {
+            "description": "Mature screenings with established historical track record (> 3 days)",
+            "show_count": int(mask_mature.sum()),
+            "metrics": calculate_metrics(actuals[mask_mature], preds[mask_mature])
+        },
+        "cold_start_shows": {
+            "description": "Opening window screenings (<= 3 days since theatrical release)",
+            "show_count": int(mask_cold_start.sum()),
+            "metrics": calculate_metrics(actuals[mask_cold_start], preds[mask_cold_start])
+        },
+        "day_0_premieres": {
+            "description": "Day 0 Premieres with zero prior show history at the theater",
+            "show_count": int(mask_day0.sum()),
+            "metrics": calculate_metrics(actuals[mask_day0], preds[mask_day0])
+        }
+    }
+
+    # Save to comparison JSON
+    comp_data["cold_start_cohorts"] = cohorts
+    with open(comparison_json_path, "w") as f:
+        json.dump(comp_data, f, indent=2)
+
+    return cohorts
 
 
 def evaluate_cold_start_strategy() -> Dict[str, Any]:
@@ -153,3 +220,9 @@ if __name__ == "__main__":
     print("Evaluation charts generated successfully:")
     for k, v in paths.items():
         print(f"  {k}: {v}")
+    
+    cohorts = evaluate_cold_start_cohort()
+    print("\nCold-Start Cohort Analysis:")
+    for cohort_name, data in cohorts.items():
+        print(f"  [{cohort_name}] (N={data['show_count']}): WAPE={data['metrics']['WAPE']}%, MAE={data['metrics']['MAE']}")
+

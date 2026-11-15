@@ -63,3 +63,25 @@ def test_preprocessor_transformation():
     
     assert X_transformed.shape[0] == 200
     assert not pd.isna(X_transformed).any()
+
+
+def test_missing_values_imputation():
+    """Verify that SimpleImputer successfully handles null values in numerical features."""
+    import numpy as np
+    df = generate_cinema_dataset(num_records=100, seed=42)
+    
+    # Introduce NaNs into historical sales and previous show occupancy
+    df.loc[0:15, "historical_average_sales"] = np.nan
+    df.loc[10:25, "previous_show_occupancy"] = np.nan
+    df.loc[20:30, "marketing_spend"] = np.nan
+    
+    df_eng = engineer_features(df)
+    features = NUMERICAL_FEATURES + CATEGORICAL_FEATURES
+    X = df_eng[features]
+    
+    preprocessor = create_preprocessor()
+    X_transformed = preprocessor.fit_transform(X)
+    
+    # Imputer must eliminate all NaNs
+    assert not np.isnan(X_transformed).any(), "Found NaNs after preprocessor pipeline transformation"
+

@@ -27,12 +27,18 @@ class CinemaDemandPredictor:
     Loads trained ML pipeline and outputs demand forecasts and operational guidelines.
     """
     def __init__(self, model_path: str = "models/best_model.joblib"):
-        if not os.path.exists(model_path):
-            raise FileNotFoundError(
-                f"Trained model not found at '{model_path}'. "
-                "Please run `python -m src.train` first."
-            )
-        self.model = joblib.load(model_path)
+        # Support running from root or from subdirectories like app/ or notebooks/
+        resolved_path = model_path
+        if not os.path.exists(resolved_path):
+            alt_path = os.path.join("..", model_path)
+            if os.path.exists(alt_path):
+                resolved_path = alt_path
+            else:
+                raise FileNotFoundError(
+                    f"Trained model not found at '{model_path}' or '{alt_path}'. "
+                    "Please run `python -m src.train` first."
+                )
+        self.model = joblib.load(resolved_path)
         self.feature_columns = NUMERICAL_FEATURES + CATEGORICAL_FEATURES
 
     def _prepare_input_df(self, input_data: Union[Dict[str, Any], pd.DataFrame]) -> pd.DataFrame:
@@ -117,8 +123,9 @@ class CinemaDemandPredictor:
         X = df_prepared[self.feature_columns]
         raw_pred = self.model.predict(X)[0]
 
-        capacity = int(df_prepared["screen_capacity"].iloc[0])
-        adv_booking = int(df_prepared["advance_booking_count"].iloc[0])
+        capacity = int(max(1, df_prepared["screen_capacity"].iloc[0]))
+        # Advance booking cannot exceed physical screen capacity
+        adv_booking = int(min(capacity, max(0, df_prepared["advance_booking_count"].iloc[0])))
 
         # Enforce physical reality:
         # Final tickets cannot be less than tickets already sold in advance
@@ -128,19 +135,28 @@ class CinemaDemandPredictor:
         remaining_seats = max(0, capacity - clamped_tickets)
         demand_cat = categorize_demand(occupancy_pct)
 
-        # Operational business logic
-        if occupancy_pct >= 80.0:
-            staffing = "Full Staffing Required (4 Ushes, 3 Concession Counters, 2 Ticket Desks)"
-            capacity_action = "High Demand Surge: Consider adding an extra midnight show or shifting to a 400+ seat IMAX screen."
-            pricing_recommendation = "Optimal demand: Maintain premium pricing or apply weekend surge (+10-15%)."
-        elif occupancy_pct >= 50.0:
-            staffing = "Standard Staffing (2 Ushers, 2 Concession Counters, 1 Ticket Desk)"
-            capacity_action = "Healthy Demand: Screen capacity is well-utilized."
-            pricing_recommendation = "Standard pricing structure is performing well."
+        # Calculate empirical prediction uncertainty interval (95% confidence based on Test RMSE: 15.20 tickets)
+        test_rmse = 15.20
+        margin = 1.96 * test_rmse
+        ci_lower = int(max(adv_booking, np.round(clamped_tickets - margin)))
+        ci_upper = int(min(capacity, np.round(clamped_tickets + margin)))
+
+        # Operational business logic & promotional recommendations
+        if occupancy_pct >= 75.0:
+            staffing = "Full Staffing Required: 4 Ushers, 3 Concession Counters, 2 Ticket Desk Attendants"
+            capacity_action = "High Demand Surge: Screen is near full capacity. Consider upgrading to a 350+ seat premium auditorium or adding a late-night screening."
+            pricing_recommendation = "Optimal Demand: Maintain premium ticket pricing; apply weekend surge pricing (+10-15%)."
+            promotional_recommendation = "High organic demand: No general admission discounts needed. Promote premium concession combos (Gourmet Popcorn + Beverage)."
+        elif occupancy_pct >= 40.0:
+            staffing = "Standard Staffing: 2 Ushers, 2 Concession Counters, 1 Ticket Desk Attendant"
+            capacity_action = "Healthy Demand: Screen capacity is well-utilized. Auditorium sizing matches demand."
+            pricing_recommendation = "Stable Demand: Standard ticket pricing structure is performing optimally."
+            promotional_recommendation = "Steady attendance: Offer loyalty member rewards and mid-tier concession packages."
         else:
-            staffing = "Light Staffing (1 Usher, 1 Concession Counter, Kiosk check-in)"
-            capacity_action = "Underutilized Screen: Consider shifting to smaller screen (120 seats) to reduce HVAC and projection costs."
-            pricing_recommendation = "Low Demand Warning: Launch flash combo discounts (Popcorn + Ticket) to stimulate walk-in sales."
+            staffing = "Light Staffing: 1 Usher, 1 Concession Counter, Self-service kiosk check-in"
+            capacity_action = "Underutilized Screen: Consider shifting to a smaller 120-seat auditorium to save projection and HVAC energy costs."
+            pricing_recommendation = "Low Demand Warning: Implement flash discount pricing or matinee promotional rates to stimulate walk-in sales."
+            promotional_recommendation = "Low foot-traffic alert: Launch combo deals (Free Soda with Popcorn, 2-for-1 student/senior tickets) to maximize walk-in conversions."
 
         return {
             "predicted_tickets_sold": clamped_tickets,
@@ -148,11 +164,21 @@ class CinemaDemandPredictor:
             "advance_booking_count": adv_booking,
             "expected_occupancy_pct": occupancy_pct,
             "remaining_seats": remaining_seats,
+            "available_seats": remaining_seats,
             "demand_category": demand_cat,
+            "model_used": "Gradient Boosting Regressor",
+            "confidence_interval_95": {
+                "lower": ci_lower,
+                "upper": ci_upper
+            },
+            "prediction_interval_str": f"[{ci_lower} - {ci_upper} tickets]",
             "recommended_staffing": staffing,
             "capacity_action": capacity_action,
             "pricing_recommendation": pricing_recommendation,
-            "raw_model_prediction": round(float(raw_pred), 1)
+            "promotional_recommendation": promotional_recommendation,
+            "raw_model_prediction": round(float(raw_pred), 1),
+            "occupancy_formula": f"({clamped_tickets} / {capacity}) × 100 = {occupancy_pct}%",
+            "disclaimer": "Notice: Business recommendations are decision-support guidelines based on statistical demand heuristics, not guaranteed operational outcomes."
         }
 
     def predict_batch(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -163,8 +189,8 @@ class CinemaDemandPredictor:
         X = df_prepared[self.feature_columns]
         raw_preds = self.model.predict(X)
 
-        capacities = df_prepared["screen_capacity"].values
-        adv_bookings = df_prepared["advance_booking_count"].values
+        capacities = np.maximum(df_prepared["screen_capacity"].values, 1)
+        adv_bookings = np.clip(df_prepared["advance_booking_count"].values, 0, capacities)
 
         clamped = np.clip(np.round(raw_preds), adv_bookings, capacities).astype(int)
         occupancies = np.round((clamped / capacities) * 100.0, 1)

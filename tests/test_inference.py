@@ -106,3 +106,74 @@ def test_batch_prediction(predictor):
     assert "predicted_tickets_sold" in batch_res.columns
     assert "expected_occupancy_pct" in batch_res.columns
     assert "demand_category" in batch_res.columns
+
+
+def test_edge_case_advance_equals_or_exceeds_capacity(predictor):
+    # Edge case 1: Pre-sold out screening
+    sample_sold_out = {
+        "movie_name": "Blockbuster Premiere",
+        "genre": "Action",
+        "screen_capacity": 250,
+        "advance_booking_count": 250,
+        "ticket_price": 18.0
+    }
+    res1 = predictor.predict_single(sample_sold_out)
+    assert res1["predicted_tickets_sold"] == 250
+    assert res1["expected_occupancy_pct"] == 100.0
+    assert res1["remaining_seats"] == 0
+
+    # Edge case 2: Advance booking exceeds capacity due to invalid user input
+    sample_overflow = {
+        "movie_name": "Overflow Show",
+        "genre": "Sci-Fi",
+        "screen_capacity": 200,
+        "advance_booking_count": 280,
+        "ticket_price": 15.0
+    }
+    res2 = predictor.predict_single(sample_overflow)
+    assert res2["predicted_tickets_sold"] == 200
+    assert res2["expected_occupancy_pct"] == 100.0
+
+
+def test_confidence_interval_bounds(predictor):
+    """Verify empirical 95% confidence interval calculations and bounds."""
+    sample = {
+        "movie_name": "Galactic Horizon",
+        "genre": "Sci-Fi",
+        "screen_capacity": 300,
+        "advance_booking_count": 100,
+        "ticket_price": 16.0
+    }
+    res = predictor.predict_single(sample)
+    assert "confidence_interval_95" in res
+    ci = res["confidence_interval_95"]
+    assert "lower" in ci
+    assert "upper" in ci
+    
+    # Check logical bounds
+    assert ci["lower"] <= res["predicted_tickets_sold"]
+    assert res["predicted_tickets_sold"] <= ci["upper"]
+    assert ci["lower"] >= sample["advance_booking_count"]
+    assert ci["upper"] <= sample["screen_capacity"]
+
+
+def test_operational_recommendations_and_disclaimer(predictor):
+    """Verify decision-support rules, model metadata, and regulatory disclaimers."""
+    sample = {
+        "movie_name": "Family Fun",
+        "genre": "Animation",
+        "screen_capacity": 200,
+        "advance_booking_count": 180,  # High occupancy > 85%
+        "ticket_price": 12.0
+    }
+    res = predictor.predict_single(sample)
+    
+    assert res["demand_category"] == "High Demand"
+    assert "Full Staffing Required" in res["recommended_staffing"]
+    assert "reallocation" in res["capacity_action"].lower() or "surge" in res["capacity_action"].lower() or "screen" in res["capacity_action"].lower()
+    assert "model_used" in res
+    assert res["model_used"] == "Gradient Boosting Regressor"
+    assert "disclaimer" in res
+    assert "decision-support" in res["disclaimer"].lower()
+
+
